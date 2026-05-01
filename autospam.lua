@@ -185,6 +185,40 @@ screenGui.ResetOnSpawn = false
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
 screenGui.Parent = playerGui
 
+-- ─── Title / splash box ──────────────────────────────────────────────────
+
+local titleBox = Instance.new("Frame")
+titleBox.Name = "TitleBox"
+titleBox.Size = UDim2.new(0, 110, 0, 40)
+titleBox.Position = UDim2.new(0.5, -55, 0.5, -20)
+titleBox.BackgroundColor3 = COL_BLACK
+titleBox.BorderSizePixel = 0
+titleBox.BackgroundTransparency = 1   -- start invisible for fade-in
+titleBox.Parent = screenGui
+Instance.new("UICorner", titleBox).CornerRadius = UDim.new(0, 10)
+
+local titleStroke = Instance.new("UIStroke")
+titleStroke.Color = COL_STROKE_OFF
+titleStroke.Thickness = 1.5
+titleStroke.Transparency = 1          -- start invisible
+titleStroke.Parent = titleBox
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(1, 0, 1, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "1NSTICT"
+titleLabel.TextColor3 = COL_WHITE
+titleLabel.TextTransparency = 1       -- start invisible
+titleLabel.TextScaled = true
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.Parent = titleBox
+
+local titleBtn = Instance.new("TextButton")
+titleBtn.Size = UDim2.new(1, 0, 1, 0)
+titleBtn.BackgroundTransparency = 1
+titleBtn.Text = ""
+titleBtn.Parent = titleBox
+
 -- ─── Main frame (hidden initially) ───────────────────────────────────────
 
 local frame = Instance.new("Frame")
@@ -364,35 +398,77 @@ makeDivider(248)
 makeRowLabel("KEY2SPAM:", 256)
 local spamBtn, spamStroke = makeKeyBtn("F", 253)
 
--- ─── Lógica para Mostrar/Ocultar el Menú ──────────────────────────────────────
+-- ─── Open / Close animation helpers ──────────────────────────────────────
 
-local guiOpen = false
+local mainOpen = false
 
-local function toggleGui()
-    guiOpen = not guiOpen
-    
-    if guiOpen then
-        -- Abre el menú en el puro centro de la pantalla
-        frame.Position = UDim2.new(0.5, -80, 0.5, -140) 
+local function openMainGui()
+    if mainOpen then return end
+    mainOpen = true
+
+    -- Snapshot title box screen position before hiding it
+    local tbPos = titleBox.AbsolutePosition
+
+    -- Collapse the title box
+    TweenService:Create(titleBox,   TI_04, {BackgroundTransparency = 1}):Play()
+    TweenService:Create(titleStroke,TI_04, {Transparency = 1}):Play()
+    TweenService:Create(titleLabel, TI_04, {TextTransparency = 1}):Play()
+
+    task.delay(0.25, function()
+        titleBox.Visible = false
+
+        -- Place main frame at same screen position as where the title box was
+        frame.Position = UDim2.new(0, tbPos.X, 0, tbPos.Y)
         frame.Size = UDim2.new(0, 160, 0, 40)
         frame.BackgroundTransparency = 0
         frame.Visible = true
 
         TweenService:Create(frame,  TI_06, {Size = UDim2.new(0, 160, 0, 280)}):Play()
         TweenService:Create(stroke, TI_05, {Transparency = 0}):Play()
-    else
-        -- Cierra el menú suavemente
-        TweenService:Create(frame,  TI_04, {Size = UDim2.new(0, 160, 0, 40), BackgroundTransparency = 1}):Play()
-        TweenService:Create(stroke, TI_04, {Transparency = 1}):Play()
-
-        task.delay(0.35, function()
-            frame.Visible = false
-            frame.Size = UDim2.new(0, 160, 0, 280)
-        end)
-    end
+    end)
 end
 
--- ─── Botón de Cerrar (X) ────────────────────────────────────────────────────
+local function closeMainGui()
+    if not mainOpen then return end
+    mainOpen = false
+
+    -- Snapshot main frame position before animating
+    local fPos = frame.AbsolutePosition
+
+    TweenService:Create(frame,  TI_04, {Size = UDim2.new(0, 160, 0, 40), BackgroundTransparency = 1}):Play()
+    TweenService:Create(stroke, TI_04, {Transparency = 1}):Play()
+
+    task.delay(0.35, function()
+        frame.Visible = false
+        frame.Size = UDim2.new(0, 160, 0, 280)
+
+        -- Restore title box at the spot where the main frame was
+        titleBox.Position = UDim2.new(0, fPos.X, 0, fPos.Y)
+        titleBox.Visible = true
+        TweenService:Create(titleBox,    TI_05, {BackgroundTransparency = 0}):Play()
+        TweenService:Create(titleStroke, TI_05, {Transparency = 0}):Play()
+        TweenService:Create(titleLabel,  TI_05, {TextTransparency = 0}):Play()
+    end)
+end
+
+-- declared here so the click handler below can read it (drag section sets it)
+local tbDidDrag = false
+
+-- ─── Title box hover glow ────────────────────────────────────────────────
+
+titleBtn.MouseEnter:Connect(function()
+    TweenService:Create(titleStroke, TI_02, {Color = COL_STROKE_ON}):Play()
+    TweenService:Create(titleLabel,  TI_02, {TextColor3 = COL_WHITE}):Play()
+end)
+titleBtn.MouseLeave:Connect(function()
+    TweenService:Create(titleStroke, TI_02, {Color = COL_STROKE_OFF}):Play()
+    TweenService:Create(titleLabel,  TI_02, {TextColor3 = COL_OFFWHITE}):Play()
+end)
+titleBtn.MouseButton1Click:Connect(function()
+    if not tbDidDrag then openMainGui() end
+end)
+
+-- ─── Close button ────────────────────────────────────────────────────────
 
 closeBtn.MouseButton1Click:Connect(function()
     if clicking then
@@ -403,9 +479,23 @@ closeBtn.MouseButton1Click:Connect(function()
         kpsNumber.Text = "0"
         last_tier = -1
     end
-    if guiOpen then
-        toggleGui()
-    end
+    closeMainGui()
+end)
+
+-- ─── Startup fade-in of title box ────────────────────────────────────────
+
+task.spawn(function()
+    task_wait(0.3)
+    titleBox.Visible = true
+    TweenService:Create(titleBox, TI_05, {BackgroundTransparency = 0}):Play()
+    TweenService:Create(titleStroke, TI_05, {Transparency = 0}):Play()
+    task_wait(0.1)
+    TweenService:Create(titleLabel, TweenInfo.new(0.6, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), {TextTransparency = 0}):Play()
+    -- Subtle pulse on the stroke to draw attention
+    task_wait(0.7)
+    TweenService:Create(titleStroke, TI_03, {Color = COL_STROKE_ON}):Play()
+    task_wait(0.4)
+    TweenService:Create(titleStroke, TI_03, {Color = COL_STROKE_OFF}):Play()
 end)
 
 -- ─── Key-bind helper ──────────────────────────────────────────────────────
@@ -545,20 +635,12 @@ end
 
 -- ─── Input handling ───────────────────────────────────────────────────────
 
-UIS.InputBegan:Connect(function(input, gameProcessed)
+UIS.InputBegan:Connect(function(input, _)
     if waitingForKey then return end
     if input.UserInputType ~= Enum.UserInputType.Keyboard then return end
-    
-    -- Tecla Shift Derecho para Abrir/Cerrar el menú GUI
-    if not gameProcessed and input.KeyCode == Enum.KeyCode.RightShift then
-        toggleGui()
-    end
-    
-    -- Tecla para hacer AutoClick (Spam)
-    if input.KeyCode == TOGGLE_KEY then 
-        if holdMode then startClicking()
-        else if clicking then stopClicking() else startClicking() end
-        end
+    if input.KeyCode ~= TOGGLE_KEY then return end
+    if holdMode then startClicking()
+    else if clicking then stopClicking() else startClicking() end
     end
 end)
 
@@ -576,6 +658,13 @@ local dragTarget  = nil
 local dragOffsetX = 0
 local dragOffsetY = 0
 
+-- title box pending state (before threshold)
+local tbPending   = false   -- mouse is held, not yet confirmed as drag
+local tbPendDownX = 0
+local tbPendDownY = 0
+
+local THRESH = 8            -- pixels before drag activates
+
 frame.InputBegan:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     dragActive  = true
@@ -584,8 +673,29 @@ frame.InputBegan:Connect(function(input)
     dragOffsetY = input.Position.Y - frame.AbsolutePosition.Y
 end)
 
+titleBtn.MouseButton1Down:Connect(function(input)
+    tbPending   = true
+    tbDidDrag   = false
+    tbPendDownX = input.Position.X
+    tbPendDownY = input.Position.Y
+    dragOffsetX = input.Position.X - titleBox.AbsolutePosition.X
+    dragOffsetY = input.Position.Y - titleBox.AbsolutePosition.Y
+end)
+
 UIS.InputChanged:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseMovement then return end
+
+    -- promote pending title box press into a real drag after threshold
+    if tbPending and not tbDidDrag then
+        local dx = input.Position.X - tbPendDownX
+        local dy = input.Position.Y - tbPendDownY
+        if dx*dx + dy*dy >= THRESH*THRESH then
+            tbDidDrag  = true
+            dragActive = true
+            dragTarget = titleBox
+        end
+    end
+
     if not dragActive or not dragTarget then return end
     local ss = screenGui.AbsoluteSize
     local fs = dragTarget.AbsoluteSize
@@ -600,6 +710,7 @@ UIS.InputEnded:Connect(function(input)
     if input.UserInputType ~= Enum.UserInputType.MouseButton1 then return end
     dragActive = false
     dragTarget = nil
+    tbPending  = false
 end)
 
 -- ─── KPS counter ──────────────────────────────────────────────────────────
